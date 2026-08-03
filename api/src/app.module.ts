@@ -1,15 +1,8 @@
 import { Module } from '@nestjs/common';
 
-/**
- * Este módulo está vazio de propósito.
- *
- * A forma como você organiza o código — em quantos módulos, onde mora a
- * normalização dos fornecedores, onde mora a regra de idempotência — é parte
- * do que está sendo avaliado. Não existe estrutura "certa" esperada aqui.
- */
+import { SearchModule } from './search/search.module';
+
 @Module({
-  imports: [],
-  controllers: [],
-  providers: [],
+  imports: [SearchModule],
 })
 export class AppModule {}
