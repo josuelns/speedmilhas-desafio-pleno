@@ -19,14 +19,18 @@ export function SearchForm({
       className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
       onSubmit={(event) => {
         event.preventDefault();
+        if (loading) {
+          return;
+        }
         onSubmit();
       }}
     >
+      <fieldset className="grid gap-4" disabled={loading}>
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium text-slate-700">Origem</span>
           <select
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
             value={values.origin}
             onChange={(event) =>
               onChange({
@@ -46,7 +50,7 @@ export function SearchForm({
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium text-slate-700">Destino</span>
           <select
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
             value={values.destination}
             onChange={(event) =>
               onChange({
@@ -67,7 +71,7 @@ export function SearchForm({
           <span className="font-medium text-slate-700">Data</span>
           <input
             type="date"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
             value={values.date}
             onChange={(event) =>
               onChange({ ...values, date: event.target.value })
@@ -79,10 +83,12 @@ export function SearchForm({
       <button
         type="submit"
         disabled={loading}
+        aria-busy={loading}
         className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? 'Buscando...' : 'Buscar passagens'}
       </button>
+      </fieldset>
     </form>
   );
 }

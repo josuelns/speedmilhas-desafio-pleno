@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { PartialBanner } from '@/app/components/PartialBanner';
 import { QuoteList } from '@/app/components/QuoteList';
@@ -18,8 +18,16 @@ const defaultFormValues: SearchFormValues = {
 export default function Home() {
   const [formValues, setFormValues] = useState<SearchFormValues>(defaultFormValues);
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' });
+  const isSearchingRef = useRef(false);
+
+  const isSearching = searchState.status === 'loading';
 
   async function handleSearch() {
+    if (isSearchingRef.current) {
+      return;
+    }
+
+    isSearchingRef.current = true;
     setSearchState({ status: 'loading' });
 
     try {
@@ -66,6 +74,8 @@ export default function Home() {
             ? error.message
             : 'Não foi possível buscar cotações.',
       });
+    } finally {
+      isSearchingRef.current = false;
     }
   }
 
@@ -87,7 +97,7 @@ export default function Home() {
 
         <SearchForm
           values={formValues}
-          loading={searchState.status === 'loading'}
+          loading={isSearching}
           onChange={setFormValues}
           onSubmit={handleSearch}
         />
