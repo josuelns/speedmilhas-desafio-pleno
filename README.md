@@ -294,12 +294,7 @@ Não descontamos ponto por uso de IA em nenhuma hipótese.
 
 ---
 
-## Entrega
 
-1. Suba o código em um repositório Git **público** (GitHub, GitLab, Bitbucket — tanto faz).
-2. Preencha o **`DECISIONS.md`** na raiz.
-3. Envie o link do repositório no formulário de entrega:
-   **https://forms.gle/8f2zR814aMRHTDhE6**
 
 Commits pequenos ao longo do caminho ajudam mais que um commit único no final.
 
