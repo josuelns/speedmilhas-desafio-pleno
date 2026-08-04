@@ -1,4 +1,10 @@
-import type { SearchFormValues, SearchResponse, SupplierId } from './types';
+import type {
+  CreateOrderPayload,
+  OrderResponse,
+  SearchFormValues,
+  SearchResponse,
+  SupplierId,
+} from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -36,6 +42,42 @@ export async function searchQuotes(
   }
 
   return (await response.json()) as SearchResponse;
+}
+
+export async function createOrder(
+  payload: CreateOrderPayload,
+): Promise<OrderResponse> {
+  const response = await fetch(`${API_URL}/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    let message = 'Não foi possível concluir a reserva.';
+
+    try {
+      const body = (await response.json()) as { message?: string | string[] };
+      if (Array.isArray(body.message)) {
+        message = body.message.join(', ');
+      } else if (body.message) {
+        message = body.message;
+      }
+    } catch (error: unknown) {
+      console.warn(
+        JSON.stringify({
+          context: 'createOrder',
+          reason: 'failed_to_parse_error_response',
+          status: response.status,
+          message: error instanceof Error ? error.message : 'unknown_error',
+        }),
+      );
+    }
+
+    throw new Error(message);
+  }
+
+  return (await response.json()) as OrderResponse;
 }
 
 export function getFailedSupplierLabels(

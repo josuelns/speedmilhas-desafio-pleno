@@ -1,6 +1,6 @@
 import type { AirportCode } from './airports';
 
-export { AIRPORTS, type AirportCode } from './airports';
+export { AIRPORTS, formatAirportOption, type AirportCode } from './airports';
 
 export type SupplierId = 'A' | 'B' | 'C';
 
@@ -41,3 +41,26 @@ export interface SearchFormValues {
   destination: AirportCode;
   date: string;
 }
+
+export interface CreateOrderPayload {
+  quoteId: string;
+  passageiro: string;
+  idempotencyKey: string;
+}
+
+export interface OrderResponse {
+  id: string;
+  idempotencyKey: string;
+  status: string;
+  payload: {
+    quoteId: string;
+    passageiro: string;
+  };
+  createdAt: string;
+}
+
+export type ReserveState =
+  | { status: 'idle' }
+  | { status: 'reserving' }
+  | { status: 'success'; orderId: string }
+  | { status: 'error'; message: string };

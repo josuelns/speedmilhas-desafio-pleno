@@ -1,5 +1,5 @@
 import type { SearchFormValues } from '@/lib/types';
-import { AIRPORTS } from '@/lib/types';
+import { AIRPORTS, formatAirportOption } from '@/lib/types';
 
 interface SearchFormProps {
   values: SearchFormValues;
@@ -41,7 +41,7 @@ export function SearchForm({
           >
             {AIRPORTS.map((airport) => (
               <option key={airport} value={airport}>
-                {airport}
+                {formatAirportOption(airport)}
               </option>
             ))}
           </select>
@@ -61,7 +61,7 @@ export function SearchForm({
           >
             {AIRPORTS.map((airport) => (
               <option key={airport} value={airport}>
-                {airport}
+                {formatAirportOption(airport)}
               </option>
             ))}
           </select>
