@@ -3,28 +3,46 @@
 import { useRef, useState } from 'react';
 
 import { createOrder } from '@/lib/api';
-import type { Quote, ReserveState } from '@/lib/types';
+import {
+  formatCurrency,
+  formatDisplayDate,
+  formatMiles,
+  formatRouteDescription,
+  formatRouteLabel,
+} from '@/lib/format';
+import type { AirportCode, Quote, ReserveState } from '@/lib/types';
 
 interface QuoteListProps {
   results: Quote[];
+  origin: AirportCode;
+  destination: AirportCode;
+  date: string;
+  total: number;
+  hasMore: boolean;
 }
 
-function formatMiles(value: number): string {
-  return new Intl.NumberFormat('pt-BR').format(value);
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
-}
+const AIRLINE_STYLES: Record<string, string> = {
+  LATAM: 'bg-indigo-50 text-indigo-700 ring-indigo-100',
+  GOL: 'bg-orange-50 text-orange-700 ring-orange-100',
+  AZUL: 'bg-sky-50 text-sky-700 ring-sky-100',
+};
 
 function shortId(value: string): string {
   return value.slice(0, 8);
 }
 
-export function QuoteList({ results }: QuoteListProps) {
+function getAirlineStyle(airline: string): string {
+  return AIRLINE_STYLES[airline] ?? 'bg-slate-100 text-slate-700 ring-slate-200';
+}
+
+export function QuoteList({
+  results,
+  origin,
+  destination,
+  date,
+  total,
+  hasMore,
+}: QuoteListProps) {
   const [passenger, setPassenger] = useState('');
   const [reserveStates, setReserveStates] = useState<Record<string, ReserveState>>(
     {},
@@ -39,7 +57,7 @@ export function QuoteList({ results }: QuoteListProps) {
         ...current,
         [quote.quoteId]: {
           status: 'error',
-          message: 'Informe o nome do passageiro.',
+          message: 'Informe o nome do passageiro para reservar.',
         },
       }));
       return;
@@ -84,81 +102,137 @@ export function QuoteList({ results }: QuoteListProps) {
 
   if (results.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-slate-600">
-        Nenhuma cotação encontrada para esta rota.
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <p className="font-medium text-slate-900">
+          Nenhuma cotação encontrada
+        </p>
+        <p className="mt-2 text-sm text-slate-600">
+          Tente outra data ou rota para ver novas opções.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      <label className="grid gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <span className="text-sm font-medium text-slate-700">
-          Nome do passageiro
-        </span>
-        <input
-          type="text"
-          value={passenger}
-          onChange={(event) => setPassenger(event.target.value)}
-          placeholder="Ex.: Maria Silva"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-        />
-      </label>
+    <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <header className="border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-lg font-semibold text-slate-900">
+              {formatRouteLabel(origin, destination)}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {formatRouteDescription(origin, destination)} ·{' '}
+              {formatDisplayDate(date)}
+            </p>
+          </div>
+          <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
+            {hasMore
+              ? `Mostrando ${results.length} de ${total}+ opções`
+              : `${total} ${total === 1 ? 'opção' : 'opções'}`}
+          </div>
+        </div>
 
-      <div className="grid gap-3">
-        {results.map((quote) => {
+        <label className="mt-4 grid gap-2">
+          <span className="text-sm font-medium text-slate-700">
+            Passageiro para reserva
+          </span>
+          <input
+            type="text"
+            value={passenger}
+            onChange={(event) => setPassenger(event.target.value)}
+            placeholder="Nome completo, ex.: Maria Silva"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15"
+          />
+          <span className="text-xs text-slate-500">
+            O mesmo nome será usado em qualquer cotação que você reservar.
+          </span>
+        </label>
+      </header>
+
+      <ol className="divide-y divide-slate-100">
+        {results.map((quote, index) => {
           const reserveState = reserveStates[quote.quoteId] ?? { status: 'idle' };
           const isReserving = reserveState.status === 'reserving';
+          const isBestOption = index === 0;
 
           return (
-            <article
-              key={quote.quoteId}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-3xl font-bold tracking-tight text-slate-900">
-                    {formatMiles(quote.miles)}
-                    <span className="ml-2 text-base font-semibold text-slate-500">
-                      milhas
+            <li key={quote.quoteId} className="p-4 sm:p-5">
+              <article className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="min-w-0">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    {isBestOption ? (
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                        Melhor preço em milhas
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        Opção {index + 1}
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${getAirlineStyle(quote.airline)}`}
+                    >
+                      {quote.airline}
                     </span>
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {quote.airline} · taxas {formatCurrency(quote.taxesBrl)}
-                  </p>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                      Fornecedor {quote.supplier}
+                    </span>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-end">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Milhas
+                      </p>
+                      <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-brand">
+                        {formatMiles(quote.miles)}
+                      </p>
+                    </div>
+
+                    <div className="hidden h-12 w-px bg-slate-200 sm:block" />
+
+                    <div className="sm:text-right">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Taxas em dinheiro
+                      </p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(quote.taxesBrl)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  Fornecedor {quote.supplier}
-                </span>
-              </div>
+                <div className="flex flex-col gap-2 sm:min-w-36 sm:items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => void handleReserve(quote)}
+                    disabled={isReserving}
+                    className="rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    {isReserving ? 'Reservando…' : 'Reservar'}
+                  </button>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleReserve(quote)}
-                  disabled={isReserving}
-                  className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {isReserving ? 'Reservando…' : 'Reservar'}
-                </button>
+                  {reserveState.status === 'success' && (
+                    <p className="rounded-xl bg-emerald-50 px-3 py-2 text-center text-xs font-medium text-emerald-800">
+                      Confirmada · #{shortId(reserveState.orderId)}
+                    </p>
+                  )}
 
-                {reserveState.status === 'success' && (
-                  <p className="text-sm font-medium text-emerald-700">
-                    Reserva confirmada · #{shortId(reserveState.orderId)}
-                  </p>
-                )}
-
-                {reserveState.status === 'error' && (
-                  <p className="text-sm text-rose-700" role="alert">
-                    {reserveState.message}
-                  </p>
-                )}
-              </div>
-            </article>
+                  {reserveState.status === 'error' && (
+                    <p
+                      className="rounded-xl bg-rose-50 px-3 py-2 text-center text-xs font-medium text-rose-800"
+                      role="alert"
+                    >
+                      {reserveState.message}
+                    </p>
+                  )}
+                </div>
+              </article>
+            </li>
           );
         })}
-      </div>
-    </div>
+      </ol>
+    </section>
   );
 }

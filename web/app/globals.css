@@ -3,7 +3,11 @@
 @theme {
   --color-brand: #0b5fff;
   --color-brand-dark: #0847c7;
-  --color-surface: #f8fafc;
+  --color-brand-soft: #e8f0ff;
+  --color-surface: #f1f5f9;
+  --color-card: #ffffff;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
 }
 
 body {
@@ -16,6 +20,8 @@ body {
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  background-color: var(--color-surface);
-  color: #0f172a;
+  background:
+    radial-gradient(circle at top, #e8f0ff 0%, transparent 42%),
+    var(--color-surface);
+  color: var(--color-ink);
 }

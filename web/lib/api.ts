@@ -8,13 +8,25 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+const DEFAULT_PAGE_SIZE = 5;
+
+export interface SearchQuotesOptions {
+  page?: number;
+  pageSize?: number;
+}
+
 export async function searchQuotes(
   values: SearchFormValues,
+  options: SearchQuotesOptions = {},
 ): Promise<SearchResponse> {
   const response = await fetch(`${API_URL}/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(values),
+    body: JSON.stringify({
+      ...values,
+      page: options.page ?? 1,
+      pageSize: options.pageSize ?? DEFAULT_PAGE_SIZE,
+    }),
   });
 
   if (!response.ok) {

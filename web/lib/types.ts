@@ -16,24 +16,40 @@ export type SupplierStatus =
   | { ok: true }
   | { ok: false; reason: string };
 
+export interface SearchPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface SearchResponse {
   results: Quote[];
   meta: {
     partial: boolean;
+    cached: boolean;
     suppliers: Record<SupplierId, SupplierStatus>;
+    pagination: SearchPagination;
   };
 }
+
+export type SearchSuccessState = {
+  status: 'success';
+  results: Quote[];
+  partial: boolean;
+  failedSuppliers?: string[];
+  page: number;
+  hasMore: boolean;
+  total: number;
+  cached: boolean;
+  isLoadingMore?: boolean;
+  query: SearchFormValues;
+};
 
 export type SearchState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'success'; results: Quote[]; partial: false }
-  | {
-      status: 'success';
-      results: Quote[];
-      partial: true;
-      failedSuppliers: string[];
-    }
+  | SearchSuccessState
   | { status: 'error'; message: string };
 
 export interface SearchFormValues {
