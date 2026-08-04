@@ -1,6 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 
-import type { SearchRequestDto } from './dto/search.dto';
+import { SearchRequestDto } from './dto/search.dto';
 import { SearchService } from './search.service';
 
 @Controller()

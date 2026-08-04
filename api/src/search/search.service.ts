@@ -1,14 +1,13 @@
 import {
-  BadRequestException,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
 
-import { AIRPORTS } from './constants';
-import type { SearchRequestDto } from './dto/search.dto';
+import { SearchRequestDto } from './dto/search.dto';
 import { fetchSupplierA } from '../suppliers/supplier-a';
 import { fetchSupplierB } from '../suppliers/supplier-b';
 import { fetchSupplierC } from '../suppliers/supplier-c';
+import { SUPPLIER_IDS } from '../suppliers/supplier-ids';
 import { getSupplierTimeoutMs, withTimeout } from '../suppliers/timeout';
 import type {
   NormalizedQuote,
@@ -25,20 +24,24 @@ export class SearchService {
   private readonly suppliersBaseUrl = process.env.SUPPLIERS_BASE_URL;
 
   async search(body: SearchRequestDto): Promise<SearchResponse> {
-    const params = this.validateSearchParams(body);
+    const params: SearchParams = {
+      origin: body.origin,
+      destination: body.destination,
+      date: body.date,
+    };
     const baseUrl = this.getSuppliersBaseUrl();
     const timeoutMs = getSupplierTimeoutMs();
 
     const [resultA, resultB, resultC] = await Promise.allSettled([
-      this.fetchWithTimeout('A', () => fetchSupplierA(baseUrl, params), timeoutMs),
-      this.fetchWithTimeout('B', () => fetchSupplierB(baseUrl, params), timeoutMs),
-      this.fetchWithTimeout('C', () => fetchSupplierC(baseUrl, params), timeoutMs),
+      this.fetchWithTimeout(SUPPLIER_IDS.A, () => fetchSupplierA(baseUrl, params), timeoutMs),
+      this.fetchWithTimeout(SUPPLIER_IDS.B, () => fetchSupplierB(baseUrl, params), timeoutMs),
+      this.fetchWithTimeout(SUPPLIER_IDS.C, () => fetchSupplierC(baseUrl, params), timeoutMs),
     ]);
 
     const suppliers: Record<SupplierId, SupplierStatus> = {
-      A: this.unwrapSupplierStatus(resultA),
-      B: this.unwrapSupplierStatus(resultB),
-      C: this.unwrapSupplierStatus(resultC),
+      [SUPPLIER_IDS.A]: this.unwrapSupplierStatus(resultA),
+      [SUPPLIER_IDS.B]: this.unwrapSupplierStatus(resultB),
+      [SUPPLIER_IDS.C]: this.unwrapSupplierStatus(resultC),
     };
 
     const quotes: NormalizedQuote[] = [
@@ -56,42 +59,6 @@ export class SearchService {
         suppliers,
       },
     };
-  }
-
-  private validateSearchParams(body: SearchRequestDto): SearchParams {
-    const origin = body.origin?.trim().toUpperCase();
-    const destination = body.destination?.trim().toUpperCase();
-    const date = body.date?.trim();
-
-    if (!origin || !destination || !date) {
-      throw new BadRequestException(
-        'origin, destination e date são obrigatórios',
-      );
-    }
-
-    if (!AIRPORTS.includes(origin as (typeof AIRPORTS)[number])) {
-      throw new BadRequestException(
-        `aeroporto de origem inválido. Disponíveis: ${AIRPORTS.join(', ')}`,
-      );
-    }
-
-    if (!AIRPORTS.includes(destination as (typeof AIRPORTS)[number])) {
-      throw new BadRequestException(
-        `aeroporto de destino inválido. Disponíveis: ${AIRPORTS.join(', ')}`,
-      );
-    }
-
-    if (origin === destination) {
-      throw new BadRequestException(
-        'origin e destination devem ser diferentes',
-      );
-    }
-
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      throw new BadRequestException('date deve estar no formato YYYY-MM-DD');
-    }
-
-    return { origin, destination, date };
   }
 
   private getSuppliersBaseUrl(): string {
