@@ -74,7 +74,7 @@ export default function Home() {
     setSearchState({ ...searchState, isLoadingMore: true });
 
     try {
-      const response = await searchQuotes(formValues, {
+      const response = await searchQuotes(searchState.query, {
         page: searchState.page + 1,
         pageSize: PAGE_SIZE,
       });
