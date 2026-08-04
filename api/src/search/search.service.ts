@@ -19,6 +19,11 @@ import type {
   SupplierStatus,
 } from '../suppliers/types';
 
+interface SupplierCall {
+  id: SupplierId;
+  fetch: () => Promise<NormalizedQuote[]>;
+}
+
 @Injectable()
 export class SearchService {
   private readonly suppliersBaseUrl = process.env.SUPPLIERS_BASE_URL;
@@ -32,30 +37,27 @@ export class SearchService {
     const baseUrl = this.getSuppliersBaseUrl();
     const timeoutMs = getSupplierTimeoutMs();
 
-    const [resultA, resultB, resultC] = await Promise.allSettled([
-      this.fetchWithTimeout(SUPPLIER_IDS.A, () => fetchSupplierA(baseUrl, params), timeoutMs),
-      this.fetchWithTimeout(SUPPLIER_IDS.B, () => fetchSupplierB(baseUrl, params), timeoutMs),
-      this.fetchWithTimeout(SUPPLIER_IDS.C, () => fetchSupplierC(baseUrl, params), timeoutMs),
-    ]);
+    const supplierCalls: SupplierCall[] = [
+      { id: SUPPLIER_IDS.A, fetch: () => fetchSupplierA(baseUrl, params) },
+      { id: SUPPLIER_IDS.B, fetch: () => fetchSupplierB(baseUrl, params) },
+      { id: SUPPLIER_IDS.C, fetch: () => fetchSupplierC(baseUrl, params) },
+    ];
 
-    const suppliers: Record<SupplierId, SupplierStatus> = {
-      [SUPPLIER_IDS.A]: this.unwrapSupplierStatus(resultA),
-      [SUPPLIER_IDS.B]: this.unwrapSupplierStatus(resultB),
-      [SUPPLIER_IDS.C]: this.unwrapSupplierStatus(resultC),
-    };
+    const settled = await Promise.allSettled(
+      supplierCalls.map(({ id, fetch }) =>
+        this.fetchWithTimeout(id, fetch, timeoutMs),
+      ),
+    );
 
-    const quotes: NormalizedQuote[] = [
-      ...this.unwrapSupplierQuotes(resultA),
-      ...this.unwrapSupplierQuotes(resultB),
-      ...this.unwrapSupplierQuotes(resultC),
-    ].sort((left, right) => left.miles - right.miles);
-
-    const partial = Object.values(suppliers).some((status) => !status.ok);
+    const { suppliers, quotes } = this.aggregateSupplierResults(
+      settled,
+      supplierCalls,
+    );
 
     return {
-      results: quotes,
+      results: quotes.sort((left, right) => left.miles - right.miles),
       meta: {
-        partial,
+        partial: Object.values(suppliers).some((status) => !status.ok),
         suppliers,
       },
     };
@@ -92,6 +94,28 @@ export class SearchService {
     }
   }
 
+  private aggregateSupplierResults(
+    settled: PromiseSettledResult<SupplierFetchResult>[],
+    supplierCalls: SupplierCall[],
+  ): { suppliers: Record<SupplierId, SupplierStatus>; quotes: NormalizedQuote[] } {
+    const suppliers = {} as Record<SupplierId, SupplierStatus>;
+    const quotes: NormalizedQuote[] = [];
+
+    settled.forEach((result, index) => {
+      const supplierId = supplierCalls[index].id;
+
+      if (result.status === 'fulfilled') {
+        suppliers[supplierId] = result.value.status;
+        quotes.push(...result.value.quotes);
+        return;
+      }
+
+      suppliers[supplierId] = { ok: false, reason: 'network_error' };
+    });
+
+    return { suppliers, quotes };
+  }
+
   private mapFailureReason(error: unknown): SupplierFailureReason {
     if (error instanceof Error) {
       if (error.message === 'timeout') {
@@ -104,25 +128,5 @@ export class SearchService {
     }
 
     return 'network_error';
-  }
-
-  private unwrapSupplierStatus(
-    result: PromiseSettledResult<SupplierFetchResult>,
-  ): SupplierStatus {
-    if (result.status === 'fulfilled') {
-      return result.value.status;
-    }
-
-    return { ok: false, reason: 'network_error' };
-  }
-
-  private unwrapSupplierQuotes(
-    result: PromiseSettledResult<SupplierFetchResult>,
-  ): NormalizedQuote[] {
-    if (result.status === 'fulfilled') {
-      return result.value.quotes;
-    }
-
-    return [];
   }
 }
