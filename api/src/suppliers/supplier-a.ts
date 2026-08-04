@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 
 import { resolveAirlineFromName } from './airlines';
+import { parseFiniteNumber } from './parse';
+import { SUPPLIER_IDS } from './supplier-ids';
 import type { NormalizedQuote, SearchParams } from './types';
 
 interface SupplierARawItem {
@@ -11,11 +13,6 @@ interface SupplierARawItem {
 
 interface SupplierAResponse {
   results?: SupplierARawItem[];
-}
-
-function parseFiniteNumber(value: unknown): number | null {
-  const num = typeof value === 'string' ? Number(value) : Number(value);
-  return Number.isFinite(num) ? num : null;
 }
 
 export function normalizeA(items: SupplierARawItem[]): NormalizedQuote[] {
@@ -30,7 +27,7 @@ export function normalizeA(items: SupplierARawItem[]): NormalizedQuote[] {
     if (miles === null || taxesBrl === null || !carrier) {
       console.warn(
         JSON.stringify({
-          supplier: 'A',
+          supplier: SUPPLIER_IDS.A,
           reason: 'invalid_item',
           raw: item,
         }),
@@ -42,7 +39,7 @@ export function normalizeA(items: SupplierARawItem[]): NormalizedQuote[] {
     if (!airline) {
       console.warn(
         JSON.stringify({
-          supplier: 'A',
+          supplier: SUPPLIER_IDS.A,
           reason: 'unknown_carrier',
           raw: item,
         }),
@@ -55,7 +52,7 @@ export function normalizeA(items: SupplierARawItem[]): NormalizedQuote[] {
       miles,
       taxesBrl,
       airline,
-      supplier: 'A',
+      supplier: SUPPLIER_IDS.A,
     });
   }
 

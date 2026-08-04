@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 
 import { resolveAirlineFromName } from './airlines';
+import { parseFiniteNumber } from './parse';
+import { SUPPLIER_IDS } from './supplier-ids';
 import type { NormalizedQuote, SearchParams } from './types';
 
 interface SupplierBRawItem {
@@ -11,11 +13,6 @@ interface SupplierBRawItem {
 
 interface SupplierBResponse {
   dados?: SupplierBRawItem[];
-}
-
-function parseFiniteNumber(value: unknown): number | null {
-  const num = typeof value === 'string' ? Number(value) : Number(value);
-  return Number.isFinite(num) ? num : null;
 }
 
 export function normalizeB(items: SupplierBRawItem[]): NormalizedQuote[] {
@@ -33,7 +30,7 @@ export function normalizeB(items: SupplierBRawItem[]): NormalizedQuote[] {
     if (miles === null || taxesBrl === null || !cia) {
       console.warn(
         JSON.stringify({
-          supplier: 'B',
+          supplier: SUPPLIER_IDS.B,
           reason: 'invalid_item',
           raw: item,
         }),
@@ -44,7 +41,7 @@ export function normalizeB(items: SupplierBRawItem[]): NormalizedQuote[] {
     if (moeda && moeda !== 'BRL') {
       console.warn(
         JSON.stringify({
-          supplier: 'B',
+          supplier: SUPPLIER_IDS.B,
           reason: 'unsupported_currency',
           raw: item,
         }),
@@ -56,7 +53,7 @@ export function normalizeB(items: SupplierBRawItem[]): NormalizedQuote[] {
     if (!airline) {
       console.warn(
         JSON.stringify({
-          supplier: 'B',
+          supplier: SUPPLIER_IDS.B,
           reason: 'unknown_carrier',
           raw: item,
         }),
@@ -69,7 +66,7 @@ export function normalizeB(items: SupplierBRawItem[]): NormalizedQuote[] {
       miles,
       taxesBrl,
       airline,
-      supplier: 'B',
+      supplier: SUPPLIER_IDS.B,
     });
   }
 

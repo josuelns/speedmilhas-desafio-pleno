@@ -1,6 +1,8 @@
 import { randomUUID } from 'crypto';
 
 import { resolveAirlineFromIata } from './airlines';
+import { parseFiniteNumber } from './parse';
+import { SUPPLIER_IDS } from './supplier-ids';
 import type { NormalizedQuote, SearchParams } from './types';
 
 interface SupplierCRawItem {
@@ -11,11 +13,6 @@ interface SupplierCRawItem {
 
 interface SupplierCResponse {
   data?: SupplierCRawItem[];
-}
-
-function parseFiniteNumber(value: unknown): number | null {
-  const num = typeof value === 'string' ? Number(value) : Number(value);
-  return Number.isFinite(num) ? num : null;
 }
 
 export function normalizeC(items: SupplierCRawItem[]): NormalizedQuote[] {
@@ -30,7 +27,7 @@ export function normalizeC(items: SupplierCRawItem[]): NormalizedQuote[] {
     if (miles === null) {
       console.warn(
         JSON.stringify({
-          supplier: 'C',
+          supplier: SUPPLIER_IDS.C,
           reason: 'invalid_price_miles',
           raw: item,
         }),
@@ -41,7 +38,7 @@ export function normalizeC(items: SupplierCRawItem[]): NormalizedQuote[] {
     if (taxesBrl === null) {
       console.warn(
         JSON.stringify({
-          supplier: 'C',
+          supplier: SUPPLIER_IDS.C,
           reason: 'invalid_fee',
           raw: item,
         }),
@@ -52,7 +49,7 @@ export function normalizeC(items: SupplierCRawItem[]): NormalizedQuote[] {
     if (!airlineCode) {
       console.warn(
         JSON.stringify({
-          supplier: 'C',
+          supplier: SUPPLIER_IDS.C,
           reason: 'invalid_airline_code',
           raw: item,
         }),
@@ -64,7 +61,7 @@ export function normalizeC(items: SupplierCRawItem[]): NormalizedQuote[] {
     if (!airline) {
       console.warn(
         JSON.stringify({
-          supplier: 'C',
+          supplier: SUPPLIER_IDS.C,
           reason: 'unknown_airline_code',
           raw: item,
         }),
@@ -77,7 +74,7 @@ export function normalizeC(items: SupplierCRawItem[]): NormalizedQuote[] {
       miles,
       taxesBrl,
       airline,
-      supplier: 'C',
+      supplier: SUPPLIER_IDS.C,
     });
   }
 
