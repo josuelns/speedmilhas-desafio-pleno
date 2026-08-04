@@ -11,9 +11,9 @@ Objetividade vale mais que volume. Duas frases boas batem dois parágrafos gené
 
 E por que você escolheu essa estratégia e não outra?
 
-Cada fornecedor tem timeout individual (`SUPPLIER_TIMEOUT_MS`, padrão 5,5s). As três chamadas rodam em `Promise.allSettled`, então o B estoura o timeout enquanto A e C seguem. A resposta volta parcial com `meta.suppliers.B.reason = timeout`, dentro do teto de 6s — sem esperar os 8s do mock.
+Dei um timeout individual pra cada fornecedor (`SUPPLIER_TIMEOUT_MS`, 5,5s por padrão) e chamei os três com `Promise.allSettled`. Assim, quando o B trava nos 8s do mock, ele estoura o timeout sozinho e não arrasta A e C junto — a resposta sai em até 6s, com `partial: true` e `meta.suppliers.B.reason = "timeout"`.
 
-Não usei retry no B nesta versão: com o orçamento de 6s, um retry poderia piorar o rate limit (429) sem ganho garantido.
+Pensei em fazer retry no B, mas descartei: dentro de um orçamento de 6s não dá tempo de tentar de novo com segurança, e ainda corro o risco de bater no rate limit (429) do mock. Preferi devolver parcial e deixar claro no `meta` o que falhou, em vez de fingir que está tudo certo ou travar a resposta inteira esperando um fornecedor que já mostrou que está instável.
 
 ---
 
@@ -21,9 +21,9 @@ Não usei retry no B nesta versão: com o orçamento de 6s, um retry poderia pio
 
 E o que quebra se subirem três instâncias da aplicação?
 
-`idempotencyKey` tem `UNIQUE` no Postgres. O fluxo é `create` direto; em `P2002`, busco o registro existente e devolvo a mesma resposta. Não há Map em memória.
+Coloquei `UNIQUE` na coluna `idempotencyKey` no Postgres. Não faço `findFirst` pra checar se já existe e depois `create` — isso é uma race condition clássica quando duas requisições chegam quase juntas. Tento o `create` direto; se der conflito (`P2002`), busco o registro que já existe e devolvo a mesma resposta pra quem chamou. A garantia está no banco, não em código.
 
-Com três instâncias continua funcionando: a garantia está no banco, não no processo Node. O que não escala entre instâncias é cache de busca e circuit breaker (estado em memória local) — cada instância tem o seu.
+Se subirem três instâncias da aplicação, isso continua funcionando sem ajuste nenhum, porque quem garante a unicidade é o Postgres, não o processo Node — não tem Map nem variável em memória guardando estado de idempotência. O que quebraria entre instâncias são o cache de busca e o circuit breaker do fornecedor B: hoje são estado local de cada processo, então cada instância teria seu próprio cache e seu próprio circuito. Pra produção com múltiplas instâncias, moveria isso pra um Redis compartilhado.
 
 ---
 
@@ -33,22 +33,26 @@ Quais ferramentas (Claude Code, Codex, Cursor, ChatGPT…), com que método (spe
 com agente, pair, revisão) — e **um ponto concreto onde você discordou dela** e seguiu por
 outro caminho.
 
-Usei **Cursor** em modo pair/spec-driven: regras em `.cursor/rules`, plano por RF, commits pequenos e `npm test` como verificação.
+Usei o **Cursor** do início ao fim, mas não deixei ele "solto": escrevi regras em `.cursor/rules` pra cada RF (busca, idempotência, frontend, bônus) antes de pedir código, então a IA já sabia o que não podia fazer — por exemplo, nunca usar `Promise.all` sem `Settled`, nunca resolver idempotência com Map em memória. Fui RF por RF, com plano curto antes de codar e commits pequenos, e usei o `npm test` como critério de "terminei" antes de seguir pro próximo.
 
-Discordância concreta: a IA sugeriu checar idempotência com `findFirst` + `create` e cache proativo de fornecedores. Mantive `create` + `P2002` (atômico no banco) e cache **reativo** só para a mesma busca repetida em TTL curto — sem antecipar chamadas aos mocks.
+Onde discordei de verdade: em mais de um momento a IA sugeriu um caminho mais "engenhoso" mas pior na prática — código difícil de ler ou com performance ruim pra um caso simples. Dois exemplos concretos: (1) pra idempotência, ela sugeriu `findFirst` seguido de `create` como checagem; recusei porque isso é race condition na cara, e troquei por `create` direto tratando o erro `P2002` do Postgres, que é atômico. (2) pra busca, ela sugeriu cache proativo (ficar buscando fornecedores em background pra "adiantar" resultado); recusei porque isso mascararia exatamente a instabilidade dos fornecedores que o desafio quer avaliar — fiz cache reativo, só pra mesma busca repetida num TTL curto de 30s. Em geral, quando a sugestão parecia over-engineering pra reduzir a legibilidade sem ganho real de nada dentro do prazo que eu tinha, eu voltei pro caminho mais simples.
 
 ---
 
 ## 4. Quanto tempo você demorou para concluir o desafio?
 
-**[Ajustar com o tempo real antes de enviar]** — estimativa: ~2 dias de implementação focada (RF1–RF4 + bônus de cache, circuit breaker e paginação), distribuídos ao longo da janela de 7 dias do desafio.
+**Cerca de 5 horas** de trabalho focado, dentro da janela de 7 dias corridos do desafio — RF1 a RF4, mais os bônus de cache, circuit breaker no fornecedor B, paginação e os testes e2e em cima disso tudo.
 
 ---
 
-### Bônus implementados (referência)
+### Bônus implementados
 
-- Cache reativo (`origin:destination:date`, TTL 30s, `meta.cached`).
-- Circuit breaker só no fornecedor B (`circuit_open` após falhas consecutivas).
+- Cache reativo (`origin:destination:date`, TTL 30s, `meta.cached`) — só pra mesma busca repetida, nunca antecipando chamada aos fornecedores.
+- Circuit breaker no fornecedor B (`circuit_open` após falhas consecutivas), com meio-aberto pra testar recuperação sem martelar o mock.
 - Paginação no `/search` + botão "Carregar mais" no front.
+- Segundo teste do RF1 usando `force-fail`/`force-slow` do próprio mock, pra não depender de sorteio de probabilidade pra reproduzir falha parcial.
 
-Não implementado: sync/cache proativo, SSE/WebSocket, job assíncrono com polling.
+### O que ficou de fora (e como faria com mais tempo)
+
+- **Log estruturado por fornecedor**: hoje o log de item descartado por sujeira e de falha de fornecedor é só `console.warn`. Com mais tempo, trocaria por um logger (ex: Pino) emitindo JSON com `supplierId`, `reason` e o item descartado, pra dar pra filtrar em produção.
+- **Sync/cache proativo, SSE/WebSocket, job assíncrono com polling**: descartados de propósito, não por falta de tempo — qualquer um deles mascararia a instabilidade dos fornecedores que o desafio quer expor na busca síncrona.
