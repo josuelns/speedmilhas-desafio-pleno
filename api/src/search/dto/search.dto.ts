@@ -1,9 +1,13 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
+  IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
+  Max,
+  Min,
   Validate,
 } from 'class-validator';
 
@@ -43,4 +47,27 @@ export class SearchRequestDto {
     message: 'date deve estar no formato YYYY-MM-DD',
   })
   date!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'page deve ser um inteiro' })
+  @Min(1, { message: 'page deve ser no mínimo 1' })
+  @Transform(({ value }: { value: unknown }) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : 1;
+  })
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'pageSize deve ser um inteiro' })
+  @Min(1, { message: 'pageSize deve ser no mínimo 1' })
+  @Max(50, { message: 'pageSize deve ser no máximo 50' })
+  @Transform(({ value }: { value: unknown }) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 50
+      ? Math.floor(parsed)
+      : 5;
+  })
+  pageSize?: number;
 }

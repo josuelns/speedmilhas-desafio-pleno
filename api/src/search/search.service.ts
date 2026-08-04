@@ -4,6 +4,15 @@ import {
 } from '@nestjs/common';
 
 import { SearchRequestDto } from './dto/search.dto';
+import {
+  buildSearchCacheKey,
+  getCachedSearch,
+  setCachedSearch,
+} from './search-cache';
+import {
+  resetSupplierBCircuitBreaker,
+  supplierBCircuitBreaker,
+} from '../suppliers/circuit-breaker';
 import { fetchSupplierA } from '../suppliers/supplier-a';
 import { fetchSupplierB } from '../suppliers/supplier-b';
 import { fetchSupplierC } from '../suppliers/supplier-c';
@@ -12,6 +21,7 @@ import { getSupplierTimeoutMs, withTimeout } from '../suppliers/timeout';
 import type {
   NormalizedQuote,
   SearchParams,
+  SearchPagination,
   SearchResponse,
   SupplierFailureReason,
   SupplierFetchResult,
@@ -21,8 +31,11 @@ import type {
 
 interface SupplierCall {
   id: SupplierId;
-  fetch: () => Promise<NormalizedQuote[]>;
+  fetch: () => Promise<SupplierFetchResult>;
 }
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 5;
 
 @Injectable()
 export class SearchService {
@@ -34,19 +47,70 @@ export class SearchService {
       destination: body.destination,
       date: body.date,
     };
+    const page = body.page ?? DEFAULT_PAGE;
+    const pageSize = body.pageSize ?? DEFAULT_PAGE_SIZE;
+    const cacheKey = buildSearchCacheKey(params);
+    const cached = getCachedSearch(cacheKey);
+
+    if (cached) {
+      return this.buildResponse({
+        quotes: cached.quotes,
+        suppliers: cached.suppliers,
+        partial: cached.partial,
+        cached: true,
+        page,
+        pageSize,
+      });
+    }
+
+    const aggregated = await this.fetchFromSuppliers(params);
+
+    setCachedSearch(cacheKey, {
+      quotes: aggregated.quotes,
+      suppliers: aggregated.suppliers,
+      partial: aggregated.partial,
+    });
+
+    return this.buildResponse({
+      quotes: aggregated.quotes,
+      suppliers: aggregated.suppliers,
+      partial: aggregated.partial,
+      cached: false,
+      page,
+      pageSize,
+    });
+  }
+
+  private async fetchFromSuppliers(params: SearchParams): Promise<{
+    quotes: NormalizedQuote[];
+    suppliers: Record<SupplierId, SupplierStatus>;
+    partial: boolean;
+  }> {
     const baseUrl = this.getSuppliersBaseUrl();
-    const timeoutMs = getSupplierTimeoutMs();
 
     const supplierCalls: SupplierCall[] = [
-      { id: SUPPLIER_IDS.A, fetch: () => fetchSupplierA(baseUrl, params) },
-      { id: SUPPLIER_IDS.B, fetch: () => fetchSupplierB(baseUrl, params) },
-      { id: SUPPLIER_IDS.C, fetch: () => fetchSupplierC(baseUrl, params) },
+      {
+        id: SUPPLIER_IDS.A,
+        fetch: () =>
+          this.fetchWithTimeout(SUPPLIER_IDS.A, () =>
+            fetchSupplierA(baseUrl, params),
+          ),
+      },
+      {
+        id: SUPPLIER_IDS.B,
+        fetch: () => this.fetchSupplierBWithBreaker(baseUrl, params),
+      },
+      {
+        id: SUPPLIER_IDS.C,
+        fetch: () =>
+          this.fetchWithTimeout(SUPPLIER_IDS.C, () =>
+            fetchSupplierC(baseUrl, params),
+          ),
+      },
     ];
 
     const settled = await Promise.allSettled(
-      supplierCalls.map(({ id, fetch }) =>
-        this.fetchWithTimeout(id, fetch, timeoutMs),
-      ),
+      supplierCalls.map(({ fetch }) => fetch()),
     );
 
     const { suppliers, quotes } = this.aggregateSupplierResults(
@@ -55,11 +119,48 @@ export class SearchService {
     );
 
     return {
-      results: quotes.sort((left, right) => left.miles - right.miles),
+      quotes: quotes.sort((left, right) => left.miles - right.miles),
+      suppliers,
+      partial: Object.values(suppliers).some((status) => !status.ok),
+    };
+  }
+
+  private buildResponse(input: {
+    quotes: NormalizedQuote[];
+    suppliers: Record<SupplierId, SupplierStatus>;
+    partial: boolean;
+    cached: boolean;
+    page: number;
+    pageSize: number;
+  }): SearchResponse {
+    const pagination = this.paginate(input.quotes, input.page, input.pageSize);
+
+    return {
+      results: pagination.results,
       meta: {
-        partial: Object.values(suppliers).some((status) => !status.ok),
-        suppliers,
+        partial: input.partial,
+        cached: input.cached,
+        suppliers: input.suppliers,
+        pagination,
       },
+    };
+  }
+
+  private paginate(
+    quotes: NormalizedQuote[],
+    page: number,
+    pageSize: number,
+  ): SearchPagination & { results: NormalizedQuote[] } {
+    const total = quotes.length;
+    const start = (page - 1) * pageSize;
+    const results = quotes.slice(start, start + pageSize);
+
+    return {
+      results,
+      page,
+      pageSize,
+      total,
+      hasMore: start + pageSize < total,
     };
   }
 
@@ -73,11 +174,36 @@ export class SearchService {
     return this.suppliersBaseUrl;
   }
 
+  private async fetchSupplierBWithBreaker(
+    baseUrl: string,
+    params: SearchParams,
+  ): Promise<SupplierFetchResult> {
+    if (!supplierBCircuitBreaker.canExecute()) {
+      return {
+        quotes: [],
+        status: { ok: false, reason: 'circuit_open' },
+      };
+    }
+
+    const result = await this.fetchWithTimeout(SUPPLIER_IDS.B, () =>
+      fetchSupplierB(baseUrl, params),
+    );
+
+    if (result.status.ok) {
+      supplierBCircuitBreaker.recordSuccess();
+    } else {
+      supplierBCircuitBreaker.recordFailure();
+    }
+
+    return result;
+  }
+
   private async fetchWithTimeout(
     supplier: SupplierId,
     fetcher: () => Promise<NormalizedQuote[]>,
-    timeoutMs: number,
   ): Promise<SupplierFetchResult> {
+    const timeoutMs = getSupplierTimeoutMs();
+
     try {
       const quotes = await withTimeout(fetcher(), timeoutMs);
       return { quotes, status: { ok: true } };
@@ -130,3 +256,6 @@ export class SearchService {
     return 'network_error';
   }
 }
+
+export { clearSearchCache } from './search-cache';
+export { resetSupplierBCircuitBreaker };

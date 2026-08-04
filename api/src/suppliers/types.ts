@@ -18,7 +18,8 @@ export type SupplierFailureReason =
   | 'timeout'
   | 'http_error'
   | 'network_error'
-  | 'parse_error';
+  | 'parse_error'
+  | 'circuit_open';
 
 export type SupplierStatus =
   | { ok: true }
@@ -29,10 +30,19 @@ export interface SupplierFetchResult {
   status: SupplierStatus;
 }
 
+export interface SearchPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  hasMore: boolean;
+}
+
 export interface SearchResponse {
   results: NormalizedQuote[];
   meta: {
     partial: boolean;
+    cached: boolean;
     suppliers: Record<SupplierId, SupplierStatus>;
+    pagination: SearchPagination;
   };
 }

@@ -2,8 +2,36 @@ const { execSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const API_PORTS = [3000, 3010];
+const API_PORTS = [3090, 3091];
 const STATE_FILE = path.join(__dirname, 'e2e-servers.json');
+const CONFIG_FILE = path.join(__dirname, 'e2e-config.json');
+
+function killProcess(pid) {
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+      return;
+    }
+
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    // Processo já encerrado.
+  }
+}
+
+function cleanupPreviousRun() {
+  if (!fs.existsSync(STATE_FILE)) {
+    return;
+  }
+
+  const { spawnedPids } = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+
+  for (const { pid } of spawnedPids) {
+    killProcess(pid);
+  }
+
+  fs.unlinkSync(STATE_FILE);
+}
 
 async function isPortResponding(port) {
   try {
@@ -37,6 +65,8 @@ async function waitForPort(port, maxAttempts = 40) {
 module.exports = async function globalSetup() {
   require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+  cleanupPreviousRun();
+
   const apiDir = path.join(__dirname, '..');
   const mainPath = path.join(apiDir, 'dist', 'main.js');
   const spawnedPids = [];
@@ -47,12 +77,18 @@ module.exports = async function globalSetup() {
 
   for (const port of API_PORTS) {
     if (await isPortResponding(port)) {
-      continue;
+      throw new Error(
+        `Porta ${port} já está em uso. Libere-a para rodar os testes e2e.`,
+      );
     }
 
     const child = spawn(process.execPath, [mainPath], {
       cwd: apiDir,
-      env: { ...process.env, PORT: String(port) },
+      env: {
+        ...process.env,
+        PORT: String(port),
+        ENABLE_TEST_ENDPOINTS: 'true',
+      },
       stdio: 'pipe',
     });
 
@@ -65,4 +101,11 @@ module.exports = async function globalSetup() {
   }
 
   fs.writeFileSync(STATE_FILE, JSON.stringify({ spawnedPids }));
+  fs.writeFileSync(
+    CONFIG_FILE,
+    JSON.stringify({
+      apiPort: API_PORTS[0],
+      apiSecondaryPort: API_PORTS[1],
+    }),
+  );
 };
