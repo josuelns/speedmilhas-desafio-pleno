@@ -52,7 +52,7 @@
     "rootDir": ".",
     "testRegex": ".*\\.(spec|e2e-spec)\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": [
+      "^.+\\.ts$": [
         "ts-jest",
         {
           "tsconfig": "tsconfig.json"
@@ -60,6 +60,9 @@
       ]
     },
     "testEnvironment": "node",
+    "testTimeout": 30000,
+    "globalSetup": "<rootDir>/test/global-setup.js",
+    "globalTeardown": "<rootDir>/test/global-teardown.js",
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/dist/",
