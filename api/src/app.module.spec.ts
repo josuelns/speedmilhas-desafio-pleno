@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from './app.module';

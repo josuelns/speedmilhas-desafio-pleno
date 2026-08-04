@@ -9,3 +9,11 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Order {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  status         String
+  payload        Json
+  createdAt      DateTime @default(now())
+}
