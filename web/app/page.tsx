@@ -7,6 +7,7 @@ import { QuoteList } from '@/app/components/QuoteList';
 import { QuoteSkeleton } from '@/app/components/QuoteSkeleton';
 import { SearchForm } from '@/app/components/SearchForm';
 import { getFailedSupplierLabels, searchQuotes } from '@/lib/api';
+import { mapSearchResponseToState } from '@/lib/map-search-response';
 import type { SearchFormValues, SearchState } from '@/lib/types';
 
 const defaultFormValues: SearchFormValues = {
@@ -32,40 +33,7 @@ export default function Home() {
 
     try {
       const response = await searchQuotes(formValues);
-      const failedSuppliers = getFailedSupplierLabels(response.meta.suppliers);
-
-      if (response.meta.partial) {
-        if (response.results.length === 0) {
-          setSearchState({
-            status: 'error',
-            message:
-              'Nenhum fornecedor respondeu. Tente novamente em alguns instantes.',
-          });
-          return;
-        }
-
-        setSearchState({
-          status: 'success',
-          results: response.results,
-          partial: true,
-          failedSuppliers,
-        });
-        return;
-      }
-
-      if (response.results.length === 0) {
-        setSearchState({
-          status: 'error',
-          message: 'Nenhuma cotação encontrada para esta rota.',
-        });
-        return;
-      }
-
-      setSearchState({
-        status: 'success',
-        results: response.results,
-        partial: false,
-      });
+      setSearchState(mapSearchResponseToState(response));
     } catch (error: unknown) {
       setSearchState({
         status: 'error',

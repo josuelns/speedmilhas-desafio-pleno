@@ -1,4 +1,4 @@
-import type { SearchFormValues, SearchResponse } from './types';
+import type { SearchFormValues, SearchResponse, SupplierId } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -21,8 +21,15 @@ export async function searchQuotes(
       } else if (payload.message) {
         message = payload.message;
       }
-    } catch {
-      // Mantém mensagem padrão.
+    } catch (error: unknown) {
+      console.warn(
+        JSON.stringify({
+          context: 'searchQuotes',
+          reason: 'failed_to_parse_error_response',
+          status: response.status,
+          message: error instanceof Error ? error.message : 'unknown_error',
+        }),
+      );
     }
 
     throw new Error(message);
@@ -35,7 +42,7 @@ export function getFailedSupplierLabels(
   suppliers: SearchResponse['meta']['suppliers'],
 ): string[] {
   return (Object.entries(suppliers) as Array<
-    ['A' | 'B' | 'C', SearchResponse['meta']['suppliers']['A']]
+    [SupplierId, SearchResponse['meta']['suppliers'][SupplierId]]
   >)
     .filter(([, status]) => !status.ok)
     .map(([supplier]) => `Fornecedor ${supplier}`);

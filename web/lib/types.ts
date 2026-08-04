@@ -1,22 +1,15 @@
-export const AIRPORTS = [
-  'GRU',
-  'GIG',
-  'BSB',
-  'SSA',
-  'REC',
-  'POA',
-  'CNF',
-  'FOR',
-] as const;
+import type { AirportCode } from './airports';
 
-export type AirportCode = (typeof AIRPORTS)[number];
+export { AIRPORTS, type AirportCode } from './airports';
+
+export type SupplierId = 'A' | 'B' | 'C';
 
 export interface Quote {
   quoteId: string;
   miles: number;
   taxesBrl: number;
   airline: string;
-  supplier: 'A' | 'B' | 'C';
+  supplier: SupplierId;
 }
 
 export type SupplierStatus =
@@ -27,7 +20,7 @@ export interface SearchResponse {
   results: Quote[];
   meta: {
     partial: boolean;
-    suppliers: Record<'A' | 'B' | 'C', SupplierStatus>;
+    suppliers: Record<SupplierId, SupplierStatus>;
   };
 }
 
